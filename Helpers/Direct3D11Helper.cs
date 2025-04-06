@@ -29,7 +29,7 @@ using WinRT;
 
 namespace WinTransform.Helpers;
 
-static class Direct3D11Helper
+public static class Direct3D11Helper
 {
     static Guid ID3D11Device = new("db6f6ddb-ac77-4e88-8253-819df9bbf140");
     static Guid ID3D11Texture2D = new("6f15aaf2-d208-4e89-9ab4-489535d34f9c");
@@ -46,10 +46,10 @@ static class Direct3D11Helper
     [DllImport("d3d11.dll", CharSet = CharSet.Unicode, ExactSpelling = false)]
     static extern void CreateDirect3D11DeviceFromDXGIDevice(nint dxgiDevice, out nint graphicsDevice);
 
-    public static IDirect3DDevice CreateDevice(bool useWARP = false)
+    public static IDirect3DDevice CreateDevice()
     {
         var d3dDevice = new SharpDX.Direct3D11.Device(
-            useWARP ? SharpDX.Direct3D.DriverType.Software: SharpDX.Direct3D.DriverType.Hardware,
+            SharpDX.Direct3D.DriverType.Hardware,
             SharpDX.Direct3D11.DeviceCreationFlags.BgraSupport);
         // Acquire the DXGI interface for the Direct3D device.
         using var dxgiDevice = d3dDevice.QueryInterface<SharpDX.DXGI.Device3>();

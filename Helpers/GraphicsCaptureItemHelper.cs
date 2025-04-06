@@ -28,7 +28,7 @@ using Windows.Graphics.Capture;
 
 namespace WinTransform.Helpers;
 
-record Capturable(string Name, Func<GraphicsCaptureItem> GetItem)
+public record Capturable(string Name, Func<GraphicsCaptureItem> GetItem)
 {
     public override string ToString() => Name;
 
@@ -36,9 +36,9 @@ record Capturable(string Name, Func<GraphicsCaptureItem> GetItem)
         [.. MonitorEnumerationHelper.GetMonitors(), .. WindowEnumerationHelper.GetWindows()];
 }
 
-static class GraphicsCaptureItemHelper
+public static class GraphicsCaptureItemHelper
 {
-    static readonly Guid GraphicsCaptureItemGuid = new Guid("79C3F95B-31F7-4EC2-A464-632EF5D30760");
+    static readonly Guid GraphicsCaptureItemGuid = new("79C3F95B-31F7-4EC2-A464-632EF5D30760");
 
     [ComImport]
     [Guid("3628E81B-3CAC-4C60-B7F4-23CE0E0C3356")]

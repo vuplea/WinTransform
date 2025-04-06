@@ -21,27 +21,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+using Nito.AsyncEx;
 using Nito.Disposables;
 using SharpDX.DXGI;
-using System.Runtime.InteropServices;
-using System.Threading.Channels;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 
 namespace WinTransform.Helpers;
 
-record Frame(int Width, int Height, int Stride, byte[] Bytes);
-
-class FrameSizeChangedException : Exception { }
-
-class CaptureHelper
+public class CaptureInfo
 {
-    public static ChannelReader<Frame> Capture(GraphicsCaptureItem item, CancellationToken ct)
+    public Action ProcessFrameCallback { get; set; }
+    public Task CaptureTask { get; internal set; }
+    public int Width { get; internal set; }
+    public int Height { get; internal set; }
+    public int Stride { get; internal set; }
+    public IntPtr DataPointer { get; internal set; }
+}
+
+public class FrameSizeChangedException : Exception { }
+
+public class CaptureHelper
+{
+    public static async Task<CaptureInfo> StartCapture(GraphicsCaptureItem item, CancellationToken ct)
     {
-        var channel = Channel.CreateUnbounded<Frame>();
-        ct.Register(() => channel.Writer.Complete(new OperationCanceledException()));
-        Task.Run(CaptureAsync, ct).NoAwait();
-        return channel.Reader;
+        var context = SynchronizationContext.Current ?? new();
+        var infoReady = new AsyncManualResetEvent();
+        var info = new CaptureInfo();
+        info.CaptureTask = Task.Run(CaptureAsync, ct);
+        await infoReady.WaitAsync(ct);
+        return info;
 
         async Task CaptureAsync()
         {
@@ -51,11 +60,12 @@ class CaptureHelper
             using var d3dContext = d3dDevice.ImmediateContext;
 
             // Create our staging texture
-            var size = item.Size;
+            info.Width = item.Size.Width;
+            info.Height = item.Size.Height;
             var description = new SharpDX.Direct3D11.Texture2DDescription
             {
-                Width = size.Width,
-                Height = size.Height,
+                Width = info.Width,
+                Height = info.Height,
                 MipLevels = 1,
                 ArraySize = 1,
                 Format = Format.B8G8R8A8_UNorm,
@@ -70,47 +80,58 @@ class CaptureHelper
                 OptionFlags = SharpDX.Direct3D11.ResourceOptionFlags.None
             };
             using var stagingTexture = new SharpDX.Direct3D11.Texture2D(d3dDevice, description);
+            var mapped = d3dContext.MapSubresource(stagingTexture, 0, SharpDX.Direct3D11.MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
+            using var _ = new Disposable(() => d3dContext.UnmapSubresource(stagingTexture, 0));
+            info.Stride = mapped.RowPitch;
+            info.DataPointer = mapped.DataPointer;
+            infoReady.Set();
 
             // Setup capture
             using var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
                 device,
                 DirectXPixelFormat.B8G8R8A8UIntNormalized,
-                1,
-                size);
+                numberOfBuffers: 1,
+                item.Size);
+            var frameReady = new AsyncAutoResetEvent();
+            framePool.FrameArrived += (_, _) => frameReady.Set();
             using var session = framePool.CreateCaptureSession(item);
-
-
-            framePool.FrameArrived += (sender, _) =>
+            session.IsCursorCaptureEnabled = false;
+            session.IsBorderRequired = false;
+            session.StartCapture();
+            while (true)
             {
-                using var frame = sender.TryGetNextFrame();
-                if (frame.ContentSize != size)
+                using var cts = new CancellationTokenSource(1000);
+                try
                 {
-                    channel.Writer.Complete(new FrameSizeChangedException());
-                    return;
+                    await frameReady.WaitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                using var frame = LatestFrameOrDefault(framePool);
+                if (frame == null)
+                {
+                    continue;
+                }
+                if (frame.ContentSize != item.Size)
+                {
+                    throw new FrameSizeChangedException();
                 }
                 using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
-
-                // Copy to our staging texture
                 d3dContext.CopyResource(bitmap, stagingTexture);
-                using var __ = new Disposable(() => d3dContext.UnmapSubresource(stagingTexture, 0));
-
-                // Map our texture and get the bits
-                var mapped = d3dContext.MapSubresource(stagingTexture, 0, SharpDX.Direct3D11.MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
-                var sourceStride = mapped.RowPitch;
-
-                // Allocate some memory to hold our copy
-                var bytes = new byte[frame.ContentSize.Height * mapped.RowPitch];
-                Marshal.Copy(mapped.DataPointer, bytes, 0, bytes.Length);
-                channel.Writer.TryWrite(new Frame(size.Width, size.Height, mapped.RowPitch, bytes));
-            };
-
-            // Start the capture and wait
-            session.StartCapture();
-            try
-            {
-                await channel.Reader.Completion;
+                context.Send(() => info.ProcessFrameCallback?.Invoke());
             }
-            catch { }
         }
+    }
+
+    private static Direct3D11CaptureFrame LatestFrameOrDefault(Direct3D11CaptureFramePool framePool)
+    {
+        Direct3D11CaptureFrame latestFrame = null;
+        while (framePool.TryGetNextFrame() is { } frame)
+        {
+            latestFrame?.Dispose();
+            latestFrame = frame;
+        }
+        return latestFrame;
     }
 }

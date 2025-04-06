@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
 using Windows.Graphics.Capture;
 using WinTransform.Helpers;
 
@@ -16,7 +15,7 @@ class RenderForm : Form
     {
         this.AutoSize();
         Height = 0;
-        _picture = new PictureBox().AutoSize();
+        _picture = new PictureBox { SizeMode = PictureBoxSizeMode.Zoom }.AutoSize();
         Controls.Add(_picture);
         CaptureLoop(item).NoAwait();
         FormClosed += (_, __) => _cts.Cancel();
@@ -28,18 +27,17 @@ class RenderForm : Form
         {
             try
             {
-                var channel = CaptureHelper.Capture(item, _cts.Token);
-                while (true)
-                {
-                    await channel.WaitToReadAsync();
-                    Frame frame = null;
-                    while (channel.TryRead(out var latestFrame))
-                    {
-                        frame = latestFrame;
-                    }
-                    Render(frame);
-                }
-
+                var captureInfo = await CaptureHelper.StartCapture(item, _cts.Token);
+                _picture.Image = new Bitmap
+                (
+                    captureInfo.Width,
+                    captureInfo.Height,
+                    captureInfo.Stride,
+                    PixelFormat.Format32bppPArgb,
+                    captureInfo.DataPointer
+                );
+                captureInfo.ProcessFrameCallback = _picture.Refresh;
+                await captureInfo.CaptureTask;
             }
             catch (OperationCanceledException)
             {
@@ -51,15 +49,5 @@ class RenderForm : Form
                 await Task.Delay(1000);
             }
         }
-    }
-
-    private void Render(Frame frame)
-    {
-        _picture.Image = new Bitmap(
-            frame.Width,
-            frame.Height,
-            frame.Stride,
-            PixelFormat.Format32bppPArgb, Marshal.UnsafeAddrOfPinnedArrayElement(frame.Bytes, 0));
-        _picture.Refresh();
     }
 }

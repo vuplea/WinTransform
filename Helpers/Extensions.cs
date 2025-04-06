@@ -1,6 +1,6 @@
 ﻿namespace WinTransform.Helpers
 {
-    static class Extensions
+    public static class Extensions
     {
         public static void Trace(this Exception ex) => System.Diagnostics.Trace.TraceError(ex.ToString());
         public static async void NoAwait(this Task task)
