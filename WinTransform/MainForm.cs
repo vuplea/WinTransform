@@ -54,7 +54,7 @@ class MainForm : Form
             {
                 if (Capturable.GetAll().SingleOrDefault(c => c.Name == _targets.Text) is { } capturable)
                 {
-                    new RenderForm(capturable.GetItem()).Show();
+                    new RenderForm(new ImageProvider(capturable.GetItem())).Show();
                 }
             };
             return button;

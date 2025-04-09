@@ -1,24 +1,25 @@
-﻿namespace WinTransform.Helpers
+﻿namespace WinTransform.Helpers;
+
+public static class Extensions
 {
-    public static class Extensions
+    public static void Trace(this Exception ex) => System.Diagnostics.Trace.TraceError(ex.ToString());
+
+    public static async void NoAwait(this Task task)
     {
-        public static void Trace(this Exception ex) => System.Diagnostics.Trace.TraceError(ex.ToString());
-        public static async void NoAwait(this Task task)
+        try
         {
-            try
-            {
-                await task;
-            }
-            catch (Exception ex)
-            {
-                ex.Trace();
-            }
+            await task;
         }
-        public static T AutoSize<T>(this T control) where T : Control
+        catch (Exception ex)
         {
-            control.AutoSize = true;
-            control.Dock = DockStyle.Fill;
-            return control;
+            ex.Trace();
         }
+    }
+
+    public static T AutoSize<T>(this T control) where T : Control
+    {
+        control.AutoSize = true;
+        control.Dock = DockStyle.Fill;
+        return control;
     }
 }
