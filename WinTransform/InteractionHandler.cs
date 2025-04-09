@@ -1,5 +1,6 @@
-﻿using System.Diagnostics;
-using WinTransform.Helpers;
+﻿using WinTransform.Helpers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace WinTransform;
 
@@ -18,6 +19,8 @@ abstract class InteractionHandler
 {
     protected PictureBox Picture { get; }
     protected IRenderForm RenderForm { get; }
+    protected ILogger Logger { get; }
+
     protected MouseEventArgs MouseState
     {
         get
@@ -42,9 +45,10 @@ abstract class InteractionHandler
     /// </summary>
     protected bool Dragging => DragStartInfo != null;
 
+
     protected void StartDragging()
     {
-        Trace.TraceInformation($"[{GetType().Name}] StartDragging");
+        Logger.LogInformation("StartDragging");
         DragStartInfo = new DragStartInfo(Picture.Bounds, RenderForm.MouseState.Location);
         foreach (var value in AddDraggingData())
         {
@@ -58,7 +62,7 @@ abstract class InteractionHandler
     protected void StopDragging()
     {
         DragStartInfo = null;
-        Trace.TraceInformation($"[{GetType().Name}] StopDragging");
+        Logger.LogInformation("StopDragging");
     }
 
 
@@ -68,10 +72,11 @@ abstract class InteractionHandler
     public abstract bool CanBeActive();
     protected virtual void OnDrag() { }
 
-    public InteractionHandler(PictureBox picture, IRenderForm renderForm)
+    public InteractionHandler(PictureBox picture, IRenderForm renderForm, ILogger logger)
     {
         Picture = picture;
         RenderForm = renderForm;
+        Logger = logger;
         RenderForm.MouseStateChanged += () => IfActive(() =>
         {
             switch (RenderForm.MouseState.Type)
@@ -97,7 +102,7 @@ abstract class InteractionHandler
     {
         if (Dragging && MouseState.Button != MouseButtons.Left)
         {
-            Trace.TraceWarning($"[{GetType().Name}] Was dragging but not holding left button!");
+            Logger.LogWarning("Was dragging but not holding left button!");
             StopDragging();
         }
     }

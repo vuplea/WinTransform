@@ -1,4 +1,6 @@
-﻿using System.Drawing.Imaging;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using System.Drawing.Imaging;
 using Windows.Graphics.Capture;
 using WinTransform.Helpers;
 
@@ -6,12 +8,13 @@ namespace WinTransform;
 
 class ImageProvider : IDisposable
 {
+    private readonly ILogger<ImageProvider> _logger = Program.ServiceProvider.GetRequiredService<ILogger<ImageProvider>>();
     private readonly CancellationTokenSource _cts = new();
     private readonly GraphicsCaptureItem _item;
 
     public ImageProvider(GraphicsCaptureItem item) => _item = item;
 
-    internal void Attach(PictureBox picture) => CaptureLoop(picture).NoAwait();
+    internal void Attach(PictureBox picture) => CaptureLoop(picture).NoAwait(_logger);
 
     private async Task CaptureLoop(PictureBox picture)
     {
@@ -37,7 +40,7 @@ class ImageProvider : IDisposable
             }
             catch (Exception ex)
             {
-                ex.Trace();
+                ex.Trace(_logger);
                 await Task.Delay(1000);
             }
         }

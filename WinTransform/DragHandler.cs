@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace WinTransform
 {
@@ -7,7 +8,8 @@ namespace WinTransform
     /// </summary>
     class DragHandler : InteractionHandler
     {
-        public DragHandler(PictureBox picture, RenderForm renderForm) : base(picture, renderForm) { }
+        public DragHandler(PictureBox picture, RenderForm renderForm) :
+            base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<DragHandler>>()) { }
 
         public override bool CanBeActive() =>
             Dragging || Picture.ClientRectangle.Contains(MouseState.Location);
@@ -30,7 +32,7 @@ namespace WinTransform
 
             Picture.Bounds = newBounds;
 
-            Debug.WriteLine($"[DragHandler.Move] dx={dx}, dy={dy}, loc=({newLoc.X},{newLoc.Y})");
+            Logger.LogDebug($"dx={dx}, dy={dy}, loc=({newLoc.X},{newLoc.Y})");
         }
     }
 }

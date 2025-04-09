@@ -1,13 +1,15 @@
-using Nito.Disposables;
 using System.ComponentModel;
-using System.Diagnostics;
 using WinTransform.Helpers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Nito.Disposables;
 
 namespace WinTransform;
 
 [DesignerCategory("")]
 class RenderForm : Form, IRenderForm
 {
+    private readonly ILogger<RenderForm> _logger = Program.ServiceProvider.GetRequiredService<ILogger<RenderForm>>();
     private readonly PictureBox _picture;
     private readonly DragHandler _dragHandler;
     private readonly ResizeHandler _resizeHandler;
@@ -93,10 +95,9 @@ class RenderForm : Form, IRenderForm
             {
                 if (_activeHandler != initialHandler)
                 {
-                    Debug.WriteLine($"Handler: {_activeHandler?.GetType().Name ?? "null"}");
+                    _logger.LogInformation($"Handler: {_activeHandler?.GetType().Name ?? "null"}");
                 }
             });
         }
     }
 }
-

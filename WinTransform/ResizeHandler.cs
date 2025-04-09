@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace WinTransform;
 
@@ -12,7 +13,8 @@ class ResizeHandler : InteractionHandler
 
     private ResizeHandle? DraggingHandle => DragStartInfo?.Get<ResizeHandle>();
 
-    public ResizeHandler(PictureBox picture, RenderForm renderForm) : base(picture, renderForm) { }
+    public ResizeHandler(PictureBox picture, RenderForm renderForm)
+        : base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<ResizeHandler>>()) { }
 
     public override bool CanBeActive()
     {
@@ -109,8 +111,7 @@ class ResizeHandler : InteractionHandler
 
         Picture.Bounds = newBounds;
 
-        Debug.WriteLine($"[ResizeHandler.Move] handle={DraggingHandle}, " +
-                        $"dx={dx}, dy={dy}, new=({newWidth}x{newHeight}), loc=({newBounds.X},{newBounds.Y})");
+        Logger.LogDebug($"handle={DraggingHandle}, dx={dx}, dy={dy}, new=({newWidth}x{newHeight}), loc=({newBounds.X},{newBounds.Y})");
     }
 
     private ResizeHandle GetHandle()

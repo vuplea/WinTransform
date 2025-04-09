@@ -1,11 +1,14 @@
 using System.ComponentModel;
 using WinTransform.Helpers;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace WinTransform;
 
 [DesignerCategory("")]
 class MainForm : Form
 {
+    private readonly ILogger<ImageProvider> _logger = Program.ServiceProvider.GetRequiredService<ILogger<ImageProvider>>();
     private ComboBox _targets;
 
     public MainForm()
@@ -33,7 +36,7 @@ class MainForm : Form
         {
             _targets = new ComboBox().AutoSize();
             _targets.Width = 300;
-            UpdateTargets().NoAwait();
+            UpdateTargets().NoAwait(_logger);
             return _targets;
 
             async Task UpdateTargets()
@@ -60,5 +63,4 @@ class MainForm : Form
             return button;
         }
     }
-
 }

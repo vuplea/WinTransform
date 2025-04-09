@@ -1,10 +1,12 @@
-﻿namespace WinTransform.Helpers;
+﻿using Microsoft.Extensions.Logging;
+
+namespace WinTransform.Helpers;
 
 public static class Extensions
 {
-    public static void Trace(this Exception ex) => System.Diagnostics.Trace.TraceError(ex.ToString());
+    public static void Trace(this Exception ex, ILogger logger) => logger.LogError(ex, ex.Message);
 
-    public static async void NoAwait(this Task task)
+    public static async void NoAwait(this Task task, ILogger logger)
     {
         try
         {
@@ -12,7 +14,7 @@ public static class Extensions
         }
         catch (Exception ex)
         {
-            ex.Trace();
+            ex.Trace(logger);
         }
     }
 

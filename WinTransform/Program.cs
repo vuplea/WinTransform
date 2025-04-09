@@ -1,9 +1,15 @@
 ﻿using System.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace WinTransform;
 
 static class Program
 {
+    public static ServiceProvider ServiceProvider { get; } = new ServiceCollection()
+        .AddLogging(configure => configure.AddConsole())
+        .BuildServiceProvider();
+
     [STAThread]
     public static void Main()
     {
