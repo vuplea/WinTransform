@@ -14,9 +14,9 @@ class ImageProvider : IDisposable
 
     public ImageProvider(GraphicsCaptureItem item) => _item = item;
 
-    internal void Attach(PictureBox picture) => CaptureLoop(picture).NoAwait(_logger);
+    internal void Attach(RotatingPictureBox picture) => CaptureLoop(picture).NoAwait(_logger);
 
-    private async Task CaptureLoop(PictureBox picture)
+    private async Task CaptureLoop(RotatingPictureBox picture)
     {
         while (true)
         {

@@ -10,9 +10,8 @@ namespace WinTransform;
 class RenderForm : Form, IRenderForm
 {
     private readonly ILogger<RenderForm> _logger = Program.ServiceProvider.GetRequiredService<ILogger<RenderForm>>();
-    private readonly PictureBox _picture;
-    private readonly DragHandler _dragHandler;
-    private readonly ResizeHandler _resizeHandler;
+    private readonly RotatingPictureBox _picture;
+    private readonly IReadOnlyCollection<InteractionHandler> _handlers;
     private InteractionHandler _activeHandler;
 
     public event Action MouseStateChanged;
@@ -44,18 +43,18 @@ class RenderForm : Form, IRenderForm
         //StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(800, 600);
 
-        _picture = new PictureBox
-        {
-            SizeMode = PictureBoxSizeMode.StretchImage,
-            BorderStyle = BorderStyle.FixedSingle,
-            Dock = DockStyle.None
-        };
-        ResetPictureSize();
-        _dragHandler = new DragHandler(_picture, this);
-        _resizeHandler = new ResizeHandler(_picture, this);
+        _picture = new RotatingPictureBox();
+        _handlers =
+        [
+            // register in the order of "CanBeActive" preference
+            new RotationHandler(_picture, this),
+            new ResizeHandler(_picture, this),
+            new DragHandler(_picture, this),
+        ];
 
         imageProvider.Attach(_picture);
         FormClosed += (_, __) => imageProvider.Dispose();
+        ResetPictureSize();
 
         Controls.Add(_picture);
         this.TrackMouseState();
@@ -74,18 +73,7 @@ class RenderForm : Form, IRenderForm
         {
             return;
         }
-        // ResizeHandler is preferred over DragHandler
-        if (_resizeHandler.CanBeActive())
-        {
-            _activeHandler = _resizeHandler;
-            return;
-        }
-        if (_dragHandler.CanBeActive())
-        {
-            _activeHandler = _dragHandler;
-            return;
-        }
-        _activeHandler = null;
+        _activeHandler = _handlers.FirstOrDefault(h => h.CanBeActive());
         return;
 
         Disposable TraceHandlerChanges()

@@ -1,11 +1,11 @@
 ﻿namespace WinTransform;
 
-static class SnapHelper
+static class InteractionHelpers
 {
-    private const int SnapDistance = 15;
-
     public static Rectangle ApplySnapping(Rectangle bounds, Size clientSize)
     {
+        const int SnapDistance = 15;
+
         // Snap left
         if (Math.Abs(bounds.Left - 0) <= SnapDistance)
             bounds.X = 0;
@@ -26,4 +26,21 @@ static class SnapHelper
 
         return bounds;
     }
+
+    public static void IsNearEdges(
+        Point point,
+        Size size,
+        int edgeZoneIn,
+        int edgeZoneOut,
+        out bool nearLeft,
+        out bool nearRight,
+        out bool nearTop,
+        out bool nearBottom)
+    {
+        nearLeft = point.X <= edgeZoneIn && point.X >= -edgeZoneOut;
+        nearRight = point.X >= size.Width - edgeZoneIn && point.X <= size.Width + edgeZoneOut;
+        nearTop = point.Y <= edgeZoneIn && point.Y >= -edgeZoneOut;
+        nearBottom = point.Y >= size.Height - edgeZoneIn && point.Y <= size.Height + edgeZoneOut;
+    }
+
 }

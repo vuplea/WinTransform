@@ -1,27 +1,17 @@
 ﻿using WinTransform.Helpers;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace WinTransform;
 
-record DragStartInfo(Rectangle OriginalBounds, Point MouseDownPoint)
-{
-    private readonly Dictionary<Type, object> _additionalData = [];
-    public DragStartInfo Add(object data)
-    {
-        _additionalData[data.GetType()] = data;
-        return this;
-    }
-    public T Get<T>() => (T)_additionalData[typeof(T)];
-}
+record DragStartInfo(Rectangle OriginalBounds, Point MouseDownPoint);
 
 abstract class InteractionHandler
 {
-    protected PictureBox Picture { get; }
+    protected RotatingPictureBox Picture { get; }
     protected IRenderForm RenderForm { get; }
     protected ILogger Logger { get; }
 
-    protected MouseEventArgs MouseState
+    protected MouseEventArgs PictureMouseState
     {
         get
         {
@@ -46,18 +36,14 @@ abstract class InteractionHandler
     protected bool Dragging => DragStartInfo != null;
 
 
-    protected void StartDragging()
+    private void StartDragging()
     {
         Logger.LogInformation("StartDragging");
         DragStartInfo = new DragStartInfo(Picture.Bounds, RenderForm.MouseState.Location);
-        foreach (var value in AddDraggingData())
-        {
-            ArgumentNullException.ThrowIfNull(value, nameof(value));
-            DragStartInfo.Add(value);
-        }
+        OnStartDragging();
     }
 
-    protected virtual IEnumerable<object> AddDraggingData() => [];
+    protected virtual void OnStartDragging() { }
 
     protected void StopDragging()
     {
@@ -72,7 +58,7 @@ abstract class InteractionHandler
     public abstract bool CanBeActive();
     protected virtual void OnDrag() { }
 
-    public InteractionHandler(PictureBox picture, IRenderForm renderForm, ILogger logger)
+    public InteractionHandler(RotatingPictureBox picture, IRenderForm renderForm, ILogger logger)
     {
         Picture = picture;
         RenderForm = renderForm;
@@ -100,7 +86,7 @@ abstract class InteractionHandler
 
     private void CheckDragging()
     {
-        if (Dragging && MouseState.Button != MouseButtons.Left)
+        if (Dragging && PictureMouseState.Button != MouseButtons.Left)
         {
             Logger.LogWarning("Was dragging but not holding left button!");
             StopDragging();

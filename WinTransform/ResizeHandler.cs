@@ -8,12 +8,9 @@ namespace WinTransform;
 /// </summary>
 class ResizeHandler : InteractionHandler
 {
-    private const int EdgeZoneIn = 10;
-    private const int EdgeZoneOut = 5;
+    private ResizeHandle? _draggingHandle;
 
-    private ResizeHandle? DraggingHandle => DragStartInfo?.Get<ResizeHandle>();
-
-    public ResizeHandler(PictureBox picture, RenderForm renderForm)
+    public ResizeHandler(RotatingPictureBox picture, RenderForm renderForm)
         : base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<ResizeHandler>>()) { }
 
     public override bool CanBeActive()
@@ -30,7 +27,7 @@ class ResizeHandler : InteractionHandler
     /// <summary>
     /// Figures out if the mouse is near an edge/corner => we can start resizing.
     /// </summary>
-    protected override IEnumerable<object> AddDraggingData() => [GetHandle()];
+    protected override void OnStartDragging() => _draggingHandle = GetHandle();
 
     protected override void OnDrag()
     {
@@ -43,14 +40,12 @@ class ResizeHandler : InteractionHandler
         var originalBounds = DragStartInfo.OriginalBounds;
         var newBounds = originalBounds;
 
-        var aspect = (Picture.Image == null)
-            ? 1.0f
-            : (float)Picture.Image.Width / Picture.Image.Height;
+        var aspect = (double)Picture.Width / Picture.Height;
 
         var newWidth = newBounds.Width;
         var newHeight = newBounds.Height;
 
-        switch (DraggingHandle.Value)
+        switch (_draggingHandle.Value)
         {
             case ResizeHandle.TopLeft:
                 newWidth  = originalBounds.Width - dx;
@@ -67,24 +62,13 @@ class ResizeHandler : InteractionHandler
                 newBounds.Y = originalBounds.Y - dH_TR;
                 break;
 
-            case ResizeHandle.BottomLeft:
+            case ResizeHandle.BottomLeft or ResizeHandle.Left:
                 newWidth  = originalBounds.Width - dx;
                 newHeight = (int)(newWidth / aspect);
                 newBounds.X = originalBounds.X + dx;
                 break;
 
-            case ResizeHandle.BottomRight:
-                newWidth  = originalBounds.Width + dx;
-                newHeight = (int)(newWidth / aspect);
-                break;
-
-            case ResizeHandle.Left:
-                newWidth  = originalBounds.Width - dx;
-                newHeight = (int)(newWidth / aspect);
-                newBounds.X = originalBounds.X + dx;
-                break;
-
-            case ResizeHandle.Right:
+            case ResizeHandle.BottomRight or ResizeHandle.Right:
                 newWidth  = originalBounds.Width + dx;
                 newHeight = (int)(newWidth / aspect);
                 break;
@@ -101,26 +85,31 @@ class ResizeHandler : InteractionHandler
                 break;
         }
 
-        if (newWidth < 10)  newWidth = 10;
-        if (newHeight < 10) newHeight = 10;
-
         newBounds.Width  = newWidth;
         newBounds.Height = newHeight;
-
-        newBounds = SnapHelper.ApplySnapping(newBounds, RenderForm.ClientSize);
-
+        newBounds = InteractionHelpers.ApplySnapping(newBounds, RenderForm.ClientSize);
         Picture.Bounds = newBounds;
 
-        Logger.LogDebug($"handle={DraggingHandle}, dx={dx}, dy={dy}, new=({newWidth}x{newHeight}), loc=({newBounds.X},{newBounds.Y})");
+        if (originalBounds != newBounds)
+        {
+            Logger.LogDebug($"handle={_draggingHandle}, " +
+                $"old=({originalBounds.Width}x{originalBounds.Height}), " +
+                $"new=({newBounds.Width}x{newBounds.Height}), " +
+                $"loc=({newBounds.X},{newBounds.Y})");
+        }
     }
 
     private ResizeHandle GetHandle()
     {
-        var localPt = MouseState.Location;
-        var nearLeft = localPt.X <= EdgeZoneIn && localPt.X >= -EdgeZoneOut;
-        var nearRight = localPt.X >= Picture.Width - EdgeZoneIn && localPt.X <= Picture.Width + EdgeZoneOut;
-        var nearTop = localPt.Y <= EdgeZoneIn && localPt.Y >= -EdgeZoneOut;
-        var nearBottom = localPt.Y >= Picture.Height - EdgeZoneIn && localPt.Y <= Picture.Height + EdgeZoneOut;
+        InteractionHelpers.IsNearEdges(
+            PictureMouseState.Location,
+            Picture.Size,
+            edgeZoneIn: 10,
+            edgeZoneOut: 10,
+            out var nearLeft,
+            out var nearRight,
+            out var nearTop,
+            out var nearBottom);
 
         if (nearLeft && nearTop) return ResizeHandle.TopLeft;
         if (nearRight && nearTop) return ResizeHandle.TopRight;

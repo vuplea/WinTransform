@@ -7,7 +7,12 @@ namespace WinTransform;
 static class Program
 {
     public static ServiceProvider ServiceProvider { get; } = new ServiceCollection()
-        .AddLogging(configure => configure.AddConsole())
+        .AddLogging(configure => configure
+            .AddConsole()
+#if DEBUG
+            .SetMinimumLevel(LogLevel.Debug)
+#endif
+        )
         .BuildServiceProvider();
 
     [STAThread]

@@ -8,11 +8,11 @@ namespace WinTransform
     /// </summary>
     class DragHandler : InteractionHandler
     {
-        public DragHandler(PictureBox picture, RenderForm renderForm) :
+        public DragHandler(RotatingPictureBox picture, RenderForm renderForm) :
             base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<DragHandler>>()) { }
 
         public override bool CanBeActive() =>
-            Dragging || Picture.ClientRectangle.Contains(MouseState.Location);
+            Dragging || Picture.ClientRectangle.Contains(PictureMouseState.Location);
 
         protected override void OnDrag()
         {
@@ -28,7 +28,7 @@ namespace WinTransform
             var newBounds = new Rectangle(newLoc, DragStartInfo.OriginalBounds.Size);
 
             // Snap
-            newBounds = SnapHelper.ApplySnapping(newBounds, RenderForm.ClientSize);
+            newBounds = InteractionHelpers.ApplySnapping(newBounds, RenderForm.ClientSize);
 
             Picture.Bounds = newBounds;
 
