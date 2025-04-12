@@ -3,6 +3,7 @@ using WinTransform.Helpers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Nito.Disposables;
+using Windows.Graphics.Capture;
 
 namespace WinTransform;
 
@@ -10,7 +11,7 @@ namespace WinTransform;
 class RenderForm : Form, IRenderForm
 {
     private readonly ILogger<RenderForm> _logger = Program.ServiceProvider.GetRequiredService<ILogger<RenderForm>>();
-    private readonly RotatingPictureBox _picture;
+    private readonly RenderBox _picture;
     private readonly IReadOnlyCollection<InteractionHandler> _handlers;
     private InteractionHandler _activeHandler;
 
@@ -21,29 +22,14 @@ class RenderForm : Form, IRenderForm
 
     public MouseState MouseState => this.MouseState();
 
-    private void ResetPictureSize()
-    {
-        if (_picture.Image == null)
-        {
-            return;
-        }
-        var aspect = (float)_picture.Image.Width / _picture.Image.Height;
-        var w = ClientSize.Width / 2;
-        var h = (int)(w / aspect);
-        var x = (ClientSize.Width - w) / 2;
-        var y = (ClientSize.Height - h) / 2;
-        _picture.Bounds = new Rectangle(x, y, w, h);
-    }
-
-    public RenderForm(ImageProvider imageProvider)
+    public RenderForm(GraphicsCaptureItem captureItem)
     {
         Text = "Split Logic: DragHandler & ResizeHandler";
-        //DoubleBuffered = true;
         FormBorderStyle = FormBorderStyle.Sizable;
-        //StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = FormStartPosition.CenterScreen;
         Size = new Size(800, 600);
 
-        _picture = new RotatingPictureBox();
+        _picture = new RenderBox(captureItem);
         _handlers =
         [
             // register in the order of "CanBeActive" preference
@@ -51,10 +37,6 @@ class RenderForm : Form, IRenderForm
             new ResizeHandler(_picture, this),
             new DragHandler(_picture, this),
         ];
-
-        imageProvider.Attach(_picture);
-        FormClosed += (_, __) => imageProvider.Dispose();
-        ResetPictureSize();
 
         Controls.Add(_picture);
         this.TrackMouseState();

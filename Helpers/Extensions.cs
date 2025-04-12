@@ -4,7 +4,8 @@ namespace WinTransform.Helpers;
 
 public static class Extensions
 {
-    public static void Trace(this Exception ex, ILogger logger) => logger.LogError(ex, ex.Message);
+    public static void Trace(this Exception ex, ILogger logger, string label = null) =>
+        logger.LogError(ex, nameof(Trace));
 
     public static async void NoAwait(this Task task, ILogger logger)
     {
@@ -14,7 +15,7 @@ public static class Extensions
         }
         catch (Exception ex)
         {
-            ex.Trace(logger);
+            ex.Trace(logger, nameof(NoAwait));
         }
     }
 

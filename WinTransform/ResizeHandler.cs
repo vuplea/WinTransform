@@ -11,7 +11,7 @@ class ResizeHandler : InteractionHandler
 {
     private ResizeHandle? _draggingHandle;
 
-    public ResizeHandler(RotatingPictureBox picture, RenderForm renderForm)
+    public ResizeHandler(RenderBox picture, RenderForm renderForm)
         : base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<ResizeHandler>>()) { }
 
     public override bool CanBeActive()

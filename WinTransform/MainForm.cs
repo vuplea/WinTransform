@@ -8,7 +8,7 @@ namespace WinTransform;
 [DesignerCategory("")]
 class MainForm : Form
 {
-    private readonly ILogger<ImageProvider> _logger = Program.ServiceProvider.GetRequiredService<ILogger<ImageProvider>>();
+    private readonly ILogger<MainForm> _logger = Program.ServiceProvider.GetRequiredService<ILogger<MainForm>>();
     private ComboBox _targets;
 
     public MainForm()
@@ -57,7 +57,7 @@ class MainForm : Form
             {
                 if (Capturable.GetAll().SingleOrDefault(c => c.Name == _targets.Text) is { } capturable)
                 {
-                    new RenderForm(new ImageProvider(capturable.GetItem())).Show();
+                    new RenderForm(capturable.GetItem()).Show();
                 }
             };
             return button;

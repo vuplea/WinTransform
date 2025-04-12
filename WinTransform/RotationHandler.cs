@@ -11,7 +11,7 @@ class RotationHandler : InteractionHandler
     private double _initialPictureAngle;
     private Point _initialPictureCenter;
 
-    public RotationHandler(RotatingPictureBox picture, RenderForm renderForm)
+    public RotationHandler(RenderBox picture, RenderForm renderForm)
         : base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<RotationHandler>>())
     {
         // Hook the PictureBox paint event so we can rotate during drawing.

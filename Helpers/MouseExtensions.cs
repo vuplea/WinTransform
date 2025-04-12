@@ -63,10 +63,7 @@ public class MouseState : MouseEventArgs
     public MouseEventType Type { get; }
 
     public MouseState(MouseButtons button, int clicks, int x, int y, int delta, MouseEventType type)
-        : base(button, clicks, x, y, delta)
-    {
-        Type = type;
-    }
+        : base(button, clicks, x, y, delta) => Type = type;
 }
 
 public enum MouseEventType

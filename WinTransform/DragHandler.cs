@@ -8,7 +8,7 @@ namespace WinTransform;
 /// </summary>
 class DragHandler : InteractionHandler
 {
-    public DragHandler(RotatingPictureBox picture, RenderForm renderForm) :
+    public DragHandler(RenderBox picture, RenderForm renderForm) :
         base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<DragHandler>>())
     { }
 

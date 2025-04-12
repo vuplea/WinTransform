@@ -7,7 +7,7 @@ record DragStartInfo(Rectangle OriginalBounds, Point MouseDownPoint);
 
 abstract class InteractionHandler
 {
-    protected RotatingPictureBox Picture { get; }
+    protected RenderBox Picture { get; }
     protected IRenderForm RenderForm { get; }
     protected ILogger Logger { get; }
 
@@ -58,7 +58,7 @@ abstract class InteractionHandler
     public abstract bool CanBeActive();
     protected virtual void OnDrag() { }
 
-    public InteractionHandler(RotatingPictureBox picture, IRenderForm renderForm, ILogger logger)
+    public InteractionHandler(RenderBox picture, IRenderForm renderForm, ILogger logger)
     {
         Picture = picture;
         RenderForm = renderForm;
