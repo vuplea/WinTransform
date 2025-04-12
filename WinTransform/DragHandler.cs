@@ -1,38 +1,60 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace WinTransform
+namespace WinTransform;
+
+/// <summary>
+/// Handles the logic for DRAGGING the PictureBox around.
+/// </summary>
+class DragHandler : InteractionHandler
 {
-    /// <summary>
-    /// Handles the logic for DRAGGING the PictureBox around.
-    /// </summary>
-    class DragHandler : InteractionHandler
+    public DragHandler(RotatingPictureBox picture, RenderForm renderForm) :
+        base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<DragHandler>>())
+    { }
+
+    public override bool CanBeActive() =>
+        Dragging || Picture.ClientRectangle.Contains(PictureMouseState.Location);
+
+    protected override void OnDrag()
     {
-        public DragHandler(RotatingPictureBox picture, RenderForm renderForm) :
-            base(picture, renderForm, Program.ServiceProvider.GetRequiredService<ILogger<DragHandler>>()) { }
+        var currentPoint = RenderForm.MouseState.Location;
 
-        public override bool CanBeActive() =>
-            Dragging || Picture.ClientRectangle.Contains(PictureMouseState.Location);
+        var dx = currentPoint.X - DragStartInfo.MouseDownPoint.X;
+        var dy = currentPoint.Y - DragStartInfo.MouseDownPoint.Y;
 
-        protected override void OnDrag()
-        {
-            var currentPoint = RenderForm.MouseState.Location;
+        var newLoc = new Point(
+            DragStartInfo.OriginalBounds.X + dx,
+            DragStartInfo.OriginalBounds.Y + dy);
 
-            var dx = currentPoint.X - DragStartInfo.MouseDownPoint.X;
-            var dy = currentPoint.Y - DragStartInfo.MouseDownPoint.Y;
+        var newBounds = new Rectangle(newLoc, DragStartInfo.OriginalBounds.Size);
+        newBounds = ApplySnapping(newBounds, RenderForm.ClientSize);
+        Picture.Bounds = newBounds;
 
-            var newLoc = new Point(
-                DragStartInfo.OriginalBounds.X + dx,
-                DragStartInfo.OriginalBounds.Y + dy);
+        Logger.LogDebug($"dx={dx}, dy={dy}, loc=({newLoc.X},{newLoc.Y})");
+    }
 
-            var newBounds = new Rectangle(newLoc, DragStartInfo.OriginalBounds.Size);
+    private static Rectangle ApplySnapping(Rectangle bounds, Size parentSize)
+    {
+        const int SnapDistance = 15;
 
-            // Snap
-            newBounds = InteractionHelpers.ApplySnapping(newBounds, RenderForm.ClientSize);
+        // Snap left
+        if (Math.Abs(bounds.Left - 0) <= SnapDistance)
+            bounds.X = 0;
 
-            Picture.Bounds = newBounds;
+        // Snap right
+        int rightDelta = parentSize.Width - bounds.Right;
+        if (Math.Abs(rightDelta) <= SnapDistance)
+            bounds.X = parentSize.Width - bounds.Width;
 
-            Logger.LogDebug($"dx={dx}, dy={dy}, loc=({newLoc.X},{newLoc.Y})");
-        }
+        // Snap top
+        if (Math.Abs(bounds.Top - 0) <= SnapDistance)
+            bounds.Y = 0;
+
+        // Snap bottom
+        int bottomDelta = parentSize.Height - bounds.Bottom;
+        if (Math.Abs(bottomDelta) <= SnapDistance)
+            bounds.Y = parentSize.Height - bounds.Height;
+
+        return bounds;
     }
 }

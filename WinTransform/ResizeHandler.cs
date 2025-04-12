@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection.Metadata.Ecma335;
 
 namespace WinTransform;
 
@@ -32,8 +33,8 @@ class ResizeHandler : InteractionHandler
     protected override void OnDrag()
     {
         // Perform the actual resize
-        var currentPoint = RenderForm.MouseState.Location;
-
+        var actLikeHandle = ApplySnapping(RenderForm.MouseState.Location, RenderForm.ClientSize, out var currentPoint)
+            ?? _draggingHandle;
         var dx = currentPoint.X - DragStartInfo.MouseDownPoint.X;
         var dy = currentPoint.Y - DragStartInfo.MouseDownPoint.Y;
 
@@ -45,10 +46,10 @@ class ResizeHandler : InteractionHandler
         var newWidth = newBounds.Width;
         var newHeight = newBounds.Height;
 
-        switch (_draggingHandle.Value)
+        switch (actLikeHandle)
         {
             case ResizeHandle.TopLeft:
-                newWidth  = originalBounds.Width - dx;
+                newWidth = originalBounds.Width - dx;
                 newHeight = (int)(newWidth / aspect);
                 newBounds.X = originalBounds.X + dx;
                 var dH_TL = newHeight - originalBounds.Height;
@@ -87,7 +88,6 @@ class ResizeHandler : InteractionHandler
 
         newBounds.Width  = newWidth;
         newBounds.Height = newHeight;
-        newBounds = InteractionHelpers.ApplySnapping(newBounds, RenderForm.ClientSize);
         Picture.Bounds = newBounds;
 
         if (originalBounds != newBounds)
@@ -130,6 +130,65 @@ class ResizeHandler : InteractionHandler
         ResizeHandle.Top or ResizeHandle.Bottom => Cursors.SizeNS,
         _ => Cursors.Arrow,
     };
+
+    private static ResizeHandle? ApplySnapping(Point location, Size parentSize, out Point newLocation)
+    {
+        const int SnapDistance = 15;
+
+        InteractionHelpers.IsNearEdges(
+            location,
+            parentSize,
+            edgeZoneIn: SnapDistance,
+            edgeZoneOut: SnapDistance,
+            out var nearLeft,
+            out var nearRight,
+            out var nearTop,
+            out var nearBottom);
+
+        if (nearLeft && nearTop)
+        {
+            newLocation = new Point(0, 0);
+            return ResizeHandle.TopLeft;
+        }
+        if (nearRight && nearTop)
+        {
+            newLocation = new Point(parentSize.Width, 0);
+            return ResizeHandle.TopRight;
+        }
+        if (nearLeft && nearBottom)
+        {
+            newLocation = new Point(0, parentSize.Height);
+            return ResizeHandle.BottomLeft;
+        }
+        if (nearRight && nearBottom)
+        {
+            newLocation = new Point(parentSize.Width, parentSize.Height);
+            return ResizeHandle.BottomRight;
+        }
+        if (nearLeft)
+        {
+            newLocation = new Point(0, location.Y);
+            return ResizeHandle.Left;
+        }
+        if (nearRight)
+        {
+            newLocation = new Point(parentSize.Width, location.Y);
+            return ResizeHandle.Right;
+        }
+        if (nearTop)
+        {
+            newLocation = new Point(location.X, 0);
+            return ResizeHandle.Top;
+        }
+        if (nearBottom)
+        {
+            newLocation = new Point(location.X, parentSize.Height);
+            return ResizeHandle.Bottom;
+        }
+
+        newLocation = location;
+        return null;
+    }
 }
 
 /// <summary>
