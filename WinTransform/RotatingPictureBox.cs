@@ -12,7 +12,7 @@ public class RotatingPictureBox : Control
 
     public RotatingPictureBox()
     {
-        SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         RecalculateSize();
     }
 
@@ -71,6 +71,9 @@ public class RotatingPictureBox : Control
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+        e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.None;
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
         e.Graphics.Clear(BackColor);
         if (Image == null)
         {
