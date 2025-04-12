@@ -39,6 +39,18 @@ public class CaptureInfo
     public IntPtr DataPointer { get; internal set; }
 }
 
+class FrameReadyEvent
+{
+    // Use TCS instead of Nito to avoid TaskCompletionOptions.RunContinuationsAsynchronously
+    private volatile TaskCompletionSource _tcs = new();
+    public async Task WaitAsync()
+    {
+        await _tcs.Task;
+        _tcs = new();
+    }
+    public void Set() => _tcs.TrySetResult();
+}
+
 public class FrameSizeChangedException : Exception { }
 
 public class CaptureHelper
@@ -92,7 +104,7 @@ public class CaptureHelper
                 DirectXPixelFormat.B8G8R8A8UIntNormalized,
                 numberOfBuffers: 1,
                 item.Size);
-            var frameReady = new AsyncAutoResetEvent();
+            var frameReady = new FrameReadyEvent();
             framePool.FrameArrived += (_, _) => frameReady.Set();
             using var session = framePool.CreateCaptureSession(item);
             session.IsCursorCaptureEnabled = false;
@@ -100,14 +112,7 @@ public class CaptureHelper
             session.StartCapture();
             while (true)
             {
-                using var cts = new CancellationTokenSource(1000);
-                try
-                {
-                    await frameReady.WaitAsync(cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                }
+                await frameReady.WaitAsync();
                 using var frame = LatestFrameOrDefault(framePool);
                 if (frame == null)
                 {
