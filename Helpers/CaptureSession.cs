@@ -15,6 +15,8 @@ public class CaptureSession : IDisposable
     private readonly Direct3D11CaptureFramePool _framePool;
     private readonly GraphicsCaptureSession _session;
 
+    public Direct3D11CaptureFrame LatestFrame { get; internal set; }
+
     public CaptureSession(GraphicsCaptureItem captureItem, Device device)
     {
         _captureItem = captureItem;
@@ -31,22 +33,21 @@ public class CaptureSession : IDisposable
         _session.StartCapture();
     }
 
-    public async Task<Direct3D11CaptureFrame> WaitFrame(CancellationToken ct = default)
+    public async Task WaitFrame(CancellationToken ct = default)
     {
         await _frameReady.Task.WaitAsync(ct);
         _frameReady = new();
-        Direct3D11CaptureFrame latestFrame = null;
         while (_framePool.TryGetNextFrame() is { } frame)
         {
-            latestFrame?.Dispose();
-            latestFrame = frame;
+            LatestFrame?.Dispose();
+            LatestFrame = frame;
         }
-        Trace.Assert(latestFrame != null);
-        return latestFrame;
+        Trace.Assert(LatestFrame != null);
     }
 
     public void Dispose()
     {
+        LatestFrame?.Dispose();
         _session.Dispose();
         _framePool.Dispose();
         _graphicsDevice.Dispose();

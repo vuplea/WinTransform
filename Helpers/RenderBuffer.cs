@@ -1,4 +1,5 @@
-﻿using SharpDX;
+﻿using Microsoft.Extensions.Logging;
+using SharpDX;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 
@@ -33,12 +34,13 @@ public class RenderBuffer : IDisposable
         UpdateBufferAndView();
     }
 
-    public void SetSize(Size size)
+    public void SetSize(Size size, ILogger logger)
     {
         if (size == _size)
         {
             return;
         }
+        logger.LogInformation("Resizing render buffer");
         _size = size;
         var viewport = new ViewportF(0, 0, size.Width, size.Height, 0.0f, 1.0f);
         _device.ImmediateContext.Rasterizer.SetViewport(viewport);

@@ -1,4 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
+using Nito.AsyncEx;
+using Nito.Disposables;
 using SharpDX;
 using SharpDX.D3DCompiler;
 using SharpDX.Direct3D;
@@ -6,7 +8,6 @@ using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Windows.Graphics;
 using WinTransform.Helpers;
 
 namespace WinTransform;
@@ -15,12 +16,13 @@ partial class RenderBox
 {
     private async Task CaptureAndRenderLoop()
     {
+        var context = SynchronizationContext.Current;
         while (true)
         {
             try
             {
                 var handle = Handle;
-                await Task.Run(() => CaptureAndRender(handle), _cts.Token);
+                await Task.Run(() => CaptureAndRender(handle, CaptureSizeChanged), _cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -32,10 +34,17 @@ partial class RenderBox
                 await Task.Delay(1000, _cts.Token);
             }
         }
+
+        void CaptureSizeChanged()
+        {
+            _logger.LogInformation("Capture size changed");
+            context.Post(_ => RecalculateSize(maintainImageSize: false), null);
+        }
     }
 
     private async Task CaptureAndRender(IntPtr handle, Action captureSizeChanged = null)
     {
+        using var _ = TrackSizeChanged(out var sizeChanged);
         using var device = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug);
         using var capture = new CaptureSession(_captureItem, device);
         using var shaders = Shaders.Load(device);
@@ -45,16 +54,20 @@ partial class RenderBox
         var lastCaptureSize = _captureItem.Size;
         while (true)
         {
-            using var frame = await capture.WaitFrame(_cts.Token);
+            //await await Task.WhenAny(capture.WaitFrame(), sizeChanged.WaitAsync()).WaitAsync(_cts.Token);
+            await capture.WaitFrame().WaitAsync(_cts.Token);
+            var frame = capture.LatestFrame;
+            if (frame == null)
+            {
+                continue;
+            }
             if (frame.ContentSize != lastCaptureSize)
             {
                 lastCaptureSize = frame.ContentSize;
                 captureSizeChanged?.Invoke();
-                static string Format(SizeInt32 size) => $"{size.Width}x{size.Height}";
-                _logger.LogWarning($"Capture size changed from {Format(lastCaptureSize)} to {Format(_captureItem.Size)}");
             }
-            renderBuffer.SetSize(Size);
-            vertexCache.Update(device, GetImageSize(maintainImageSize: true), Angle);
+            renderBuffer.SetSize(Size, _logger);
+            vertexCache.Update(device, GetImageSize(maintainImageSize: true), Angle, _logger);
             using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
             using var shaderResource = new ShaderResourceView(device, bitmap);
             device.ImmediateContext.PixelShader.SetShaderResource(0, shaderResource);
@@ -62,6 +75,15 @@ partial class RenderBox
             renderBuffer.SwapChain.Present(0, PresentFlags.None);
             fpsCounter.TrackFps(_logger);
         }
+    }
+
+    Disposable TrackSizeChanged(out AsyncAutoResetEvent sizeChanged)
+    {
+        var sizeChangedEvent = new AsyncAutoResetEvent();
+        sizeChanged = sizeChangedEvent;
+        SizeChanged += OnSizeChanged;
+        return new(() => SizeChanged -= OnSizeChanged);
+        void OnSizeChanged(object sender, EventArgs args) => sizeChangedEvent.Set();
     }
 }
 
@@ -71,7 +93,7 @@ class VertexCache : IDisposable
     private Key _key;
     private SharpDX.Direct3D11.Buffer _vertexBuffer;
 
-    public void Update(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle)
+    public void Update(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle, ILogger logger)
     {
         var key = new Key(imageSize, angle);
         if (_key == key)
@@ -80,6 +102,7 @@ class VertexCache : IDisposable
         }
         _key = key;
         _vertexBuffer?.Dispose();
+        logger.LogInformation("Generating vertex buffer");
         UpdateCore(device, imageSize, angle);
     }
 
