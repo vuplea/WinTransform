@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Nito.Disposables;
+using SharpDX;
 using System.ComponentModel;
 using Windows.Graphics.Capture;
 using WinTransform.Helpers;
@@ -18,7 +19,7 @@ partial class RenderBox : Control
     public RenderBox(GraphicsCaptureItem captureItem)
     {
         _captureItem = captureItem;
-        RecalculateSize();
+        RecalculateSize(maintainImageSize: false);
         SetStyle(ControlStyles.Opaque, true);
         SetStyle(ControlStyles.AllPaintingInWmPaint, true);
         SetStyle(ControlStyles.UserPaint, false);
@@ -37,9 +38,8 @@ partial class RenderBox : Control
     }
 
     // do not recompute ImageSize during rotations from grid bounds since it will lead to drift.
-    record SizeFloat(double Width, double Height);
-    private SizeFloat _cachedImageSize;
-    private SizeFloat GetImageSize(bool maintainImageSize)
+    private Vector2? _cachedImageSize;
+    private Vector2 GetImageSize(bool maintainImageSize)
     {
         using var _ = TraceImageSize();
         if (!maintainImageSize)
@@ -51,9 +51,9 @@ partial class RenderBox : Control
             GetImageSize(Width, Height, Angle,
                 (double)_captureItem.Size.Width / _captureItem.Size.Height,
                 out var imageW, out var imageH);
-            _cachedImageSize = new(imageW, imageH);
+            _cachedImageSize = new((float)imageW, (float)imageH);
         }
-        return _cachedImageSize;
+        return _cachedImageSize.Value;
 
         Disposable TraceImageSize()
         {
@@ -74,7 +74,7 @@ partial class RenderBox : Control
         e.Graphics.ResetTransform();
         if (!IsMultipleOf90(Angle))
         {
-            using var pen = new Pen(Color.Black, 1);
+            using var pen = new Pen(System.Drawing.Color.Black, 1);
             e.Graphics.DrawRectangle(pen, 0, 0, Width - 1, Height -1);
         }
         static bool IsMultipleOf90(double degrees)
@@ -84,9 +84,9 @@ partial class RenderBox : Control
         }
     }
 
-    protected override void OnSizeChanged(EventArgs args) => RecalculateSize();
+    protected override void OnSizeChanged(EventArgs args) => RecalculateSize(maintainImageSize: false);
 
-    private void RecalculateSize(bool maintainImageSize = false)
+    private void RecalculateSize(bool maintainImageSize)
     {
         using var _ = PreventRecursion(out var shouldReturn);
         if (shouldReturn)
@@ -102,7 +102,7 @@ partial class RenderBox : Control
             Height = MinimumSizeLength;
         }
         var imageSize = GetImageSize(maintainImageSize);
-        GetGridSize(imageSize.Width, imageSize.Height, Angle, out var gridW, out var gridH);
+        GetGridSize(imageSize.X, imageSize.Y, Angle, out var gridW, out var gridH);
         Width = (int)Math.Round(gridW);
         Height = (int)Math.Round(gridH);
         return;

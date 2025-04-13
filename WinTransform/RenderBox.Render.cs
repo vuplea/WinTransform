@@ -34,65 +34,81 @@ partial class RenderBox
         }
     }
 
-    private async Task CaptureAndRender(IntPtr handle)
+    private async Task CaptureAndRender(IntPtr handle, Action captureSizeChanged = null)
     {
         using var device = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug);
         using var capture = new CaptureSession(_captureItem, device);
         using var shaders = Shaders.Load(device);
+        using var renderBuffer = new RenderBuffer(device, handle);
+        using var vertexCache = new VertexCache();
+        var fpsCounter = new FpsCounter();
+        var lastCaptureSize = _captureItem.Size;
         while (true)
         {
-            using var renderBuffer = RenderBuffer.Create(device, Width, Height, handle);
-            using var _ = BuildVerticies(device, Angle);
-            var initialCaptureSize = _captureItem.Size;
-            var fpsCounter = new FpsCounter();
-            while (true)
+            using var frame = await capture.WaitFrame(_cts.Token);
+            if (frame.ContentSize != lastCaptureSize)
             {
-                var bufferSize = renderBuffer.BackBuffer.Description;
-                if (bufferSize.Width != Width || bufferSize.Height != Height)
-                {
-                    _logger.LogWarning($"Render size changed from {bufferSize.Width}x{bufferSize.Height} to {Width}x{Height}");
-                    break;
-                }
-                using var frame = await capture.WaitFrame(_cts.Token);
-                if (frame.ContentSize != initialCaptureSize)
-                {
-                    static string Format(SizeInt32 size) => $"{size.Width}x{size.Height}";
-                    _logger.LogWarning($"Capture size changed from {Format(initialCaptureSize)} to {Format(_captureItem.Size)}");
-                    break;
-                }
-                using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
-                using var shaderResource = new ShaderResourceView(device, bitmap);
-                device.ImmediateContext.PixelShader.SetShaderResource(0, shaderResource);
-                device.ImmediateContext.Draw(vertexCount: 6, startVertexLocation: 0);
-                renderBuffer.SwapChain.Present(0, PresentFlags.None);
-                fpsCounter.TrackFps(_logger);
+                lastCaptureSize = frame.ContentSize;
+                captureSizeChanged?.Invoke();
+                static string Format(SizeInt32 size) => $"{size.Width}x{size.Height}";
+                _logger.LogWarning($"Capture size changed from {Format(lastCaptureSize)} to {Format(_captureItem.Size)}");
             }
+            renderBuffer.SetSize(Size);
+            vertexCache.Update(device, GetImageSize(maintainImageSize: true), Angle);
+            using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
+            using var shaderResource = new ShaderResourceView(device, bitmap);
+            device.ImmediateContext.PixelShader.SetShaderResource(0, shaderResource);
+            device.ImmediateContext.Draw(vertexCount: 6, startVertexLocation: 0);
+            renderBuffer.SwapChain.Present(0, PresentFlags.None);
+            fpsCounter.TrackFps(_logger);
         }
     }
+}
 
-    private static IDisposable BuildVerticies(SharpDX.Direct3D11.Device device, double angle)
+class VertexCache : IDisposable
+{
+    record Key(Vector2 ImageSize, double Angle);
+    private Key _key;
+    private SharpDX.Direct3D11.Buffer _vertexBuffer;
+
+    public void Update(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle)
     {
+        var key = new Key(imageSize, angle);
+        if (_key == key)
+        {
+            return;
+        }
+        _key = key;
+        _vertexBuffer?.Dispose();
+        UpdateCore(device, imageSize, angle);
+    }
+
+    private void UpdateCore(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle)
+    {
+        var w = imageSize.X;
+        var h = imageSize.Y;
         var vertices = new Vertex[]
         {
-            new(new(-1, +1, 0), new(0, 0)),
-            new(new(+1, +1, 0), new(1, 0)),
-            new(new(-1, -1, 0), new(0, 1)),
-            new(new(+1, +1, 0), new(1, 0)),
-            new(new(+1, -1, 0), new(1, 1)),
-            new(new(-1, -1, 0), new(0, 1)),
+            new(new(0, 0, 0), new(0, 0)),
+            new(new(w, 0, 0), new(1, 0)),
+            new(new(0, h, 0), new(0, 1)),
+
+            new(new(w, 0, 0), new(1, 0)),
+            new(new(w, h, 0), new(1, 1)),
+            new(new(0, h, 0), new(0, 1)),
         };
-        var rotation = Matrix.RotationZ(MathUtil.DegreesToRadians(-(float)angle));
+        var rotation = Matrix.RotationZ(MathUtil.DegreesToRadians((float)angle));
         Transform(ref vertices, rotation);
         var minX = vertices.Min(v => v.Space.X);
         var minY = vertices.Min(v => v.Space.Y);
         var maxX = vertices.Max(v => v.Space.X);
         var maxY = vertices.Max(v => v.Space.Y);
         var fillClip = Matrix.Translation(-minX, -minY, 0) *
-                       Matrix.Scaling(2 / (maxX - minX), 2 / (maxY - minY), 0) *
-                       Matrix.Translation(-1, -1, 0);
+                       Matrix.Scaling(2 / (maxX - minX), -2 / (maxY - minY), 0) *
+                       Matrix.Translation(-1, 1, 0);
         Transform(ref vertices, fillClip);
 
-        var vertexBuffer = SharpDX.Direct3D11.Buffer.Create(device, vertices, new()
+        _vertexBuffer = SharpDX.Direct3D11.Buffer.Create(device, vertices, new()
         {
             SizeInBytes = vertices.Length * Marshal.SizeOf<Vertex>(),
             Usage = ResourceUsage.Default,
@@ -104,12 +120,13 @@ partial class RenderBox
         var assembler = device.ImmediateContext.InputAssembler;
         assembler.PrimitiveTopology = PrimitiveTopology.TriangleList;
         assembler.SetVertexBuffers(slot: 0,
-            new VertexBufferBinding(vertexBuffer, stride: Marshal.SizeOf<Vertex>(), offset: 0));
-        return vertexBuffer;
+            new VertexBufferBinding(_vertexBuffer, stride: Marshal.SizeOf<Vertex>(), offset: 0));
 
         static void Transform(ref Vertex[] vertices, Matrix transform) =>
             vertices = [.. vertices.Select(v => new Vertex(Vector3.TransformCoordinate(v.Space, transform), v.Tex))];
     }
+
+    public void Dispose() => _vertexBuffer?.Dispose();
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Vertex
