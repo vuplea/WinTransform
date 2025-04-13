@@ -3,6 +3,13 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="SharpDX.D3DCompiler" Version="4.2.0" />
+    <PackageReference Include="SharpDX.Mathematics" Version="4.2.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Helpers\Helpers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="shader.hlsl" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

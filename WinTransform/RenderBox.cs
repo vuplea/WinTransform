@@ -2,17 +2,12 @@
 using Microsoft.Extensions.Logging;
 using Nito.Disposables;
 using System.ComponentModel;
-using SharpDX.Direct3D;
-using SharpDX.Direct3D11;
-using SharpDX.DXGI;
 using Windows.Graphics.Capture;
-using Windows.Graphics.DirectX;
 using WinTransform.Helpers;
-using System.Diagnostics;
 
 namespace WinTransform;
 
-public class RenderBox : Control
+partial class RenderBox : Control
 {
     private const int MinimumSizeLength = 150;
     private readonly ILogger<RenderBox> _logger = Program.ServiceProvider.GetRequiredService<ILogger<RenderBox>>();
@@ -24,15 +19,10 @@ public class RenderBox : Control
     {
         _captureItem = captureItem;
         RecalculateSize();
-    }
-
-    protected override void OnHandleCreated(EventArgs e)
-    {
         SetStyle(ControlStyles.Opaque, true);
         SetStyle(ControlStyles.AllPaintingInWmPaint, true);
         SetStyle(ControlStyles.UserPaint, false);
-        CaptureLoop().NoAwait(_logger);
-        base.OnHandleCreated(e);
+        CaptureAndRenderLoop().NoAwait(_logger);
     }
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -134,7 +124,7 @@ public class RenderBox : Control
     {
         // The rotated bounding box for a w×h rectangle, rotated by θ, 
         // has width = |w cos θ| + |h sin θ|, height = |h cos θ| + |w sin θ|
-        var rad = angle * Math.PI / 180.0;
+        var rad = SharpDX.MathUtil.DegreesToRadians((float)angle);
         rotatedW = Math.Abs(imageW * Math.Cos(rad)) + Math.Abs(imageH * Math.Sin(rad));
         rotatedH = Math.Abs(imageW * Math.Sin(rad)) + Math.Abs(imageH * Math.Cos(rad));
     }
@@ -159,93 +149,6 @@ public class RenderBox : Control
         imageW = imageWidthOverHeight * imageH;
     }
 
-    private async Task CaptureLoop()
-    {
-        while (true)
-        {
-            try
-            {
-                await CaptureTask(_cts.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, nameof(CaptureLoop));
-                await Task.Delay(1000, _cts.Token);
-            }
-        }
-    }
-
-    private async Task CaptureTask(CancellationToken ct)
-    {
-        var initialCaptureSize = _captureItem.Size;
-        var description = new SwapChainDescription
-        {
-            ModeDescription = new ModeDescription(Width, Height, Rational.Empty, Format.B8G8R8A8_UNorm),
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = Usage.RenderTargetOutput,
-            BufferCount = 1,
-            OutputHandle = Handle,
-            SwapEffect = SwapEffect.Discard,
-            IsWindowed = true
-        };
-        SharpDX.Direct3D11.Device.CreateWithSwapChain(
-            DriverType.Hardware,
-            DeviceCreationFlags.BgraSupport,
-            description,
-            out var device,
-            out var swapChain);
-        using var _ = device;
-        using var __ = swapChain;
-        using var deviceContext = device.ImmediateContext;
-        using var backBuffer = Texture2D.FromSwapChain<Texture2D>(swapChain, 0);
-
-        using var graphicsDevice = Direct3D11Helper.AsGraphicsDevice(device);
-        using var framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
-            graphicsDevice,
-            DirectXPixelFormat.B8G8R8A8UIntNormalized,
-            numberOfBuffers: 1,
-            initialCaptureSize);
-        var frameReady = new FrameReadyEvent();
-        framePool.FrameArrived += (_, _) => frameReady.Set();
-        using var session = framePool.CreateCaptureSession(_captureItem);
-        session.IsCursorCaptureEnabled = false;
-        session.IsBorderRequired = false;
-        session.StartCapture();
-
-        while (true)
-        {
-            await frameReady.WaitAsync(ct);
-            using var frame = LatestFrameOrDefault(framePool);
-            if (frame == null)
-            {
-                continue;
-            }
-            Trace.Assert(frame.ContentSize == _captureItem.Size);
-            if (_captureItem.Size != initialCaptureSize)
-            {
-                throw new FrameSizeChangedException();
-            }
-            using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
-            deviceContext.CopyResource(bitmap, backBuffer);
-            swapChain.Present(0, PresentFlags.None);
-        }
-    }
-
-    private static Direct3D11CaptureFrame LatestFrameOrDefault(Direct3D11CaptureFramePool framePool)
-    {
-        Direct3D11CaptureFrame latestFrame = null;
-        while (framePool.TryGetNextFrame() is { } frame)
-        {
-            latestFrame?.Dispose();
-            latestFrame = frame;
-        }
-        return latestFrame;
-    }
-
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -254,16 +157,4 @@ public class RenderBox : Control
         }
         base.Dispose(disposing);
     }
-}
-
-class FrameSizeChangedException : Exception { }
-class FrameReadyEvent
-{
-    private volatile TaskCompletionSource _tcs = new();
-    public async Task WaitAsync(CancellationToken ct)
-    {
-        await _tcs.Task.WaitAsync(ct);
-        _tcs = new();
-    }
-    public void Set() => _tcs.TrySetResult();
 }
