@@ -3,9 +3,9 @@ using SharpDX;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 
-namespace WinTransform.Helpers;
+namespace WinTransform.Render;
 
-public class RenderBuffer : IDisposable
+class RenderBuffer : IDisposable
 {
     private readonly SharpDX.Direct3D11.Device _device;
     private Size _size;
@@ -14,7 +14,7 @@ public class RenderBuffer : IDisposable
     public Texture2D BackBuffer { get; internal set; }
     public RenderTargetView TargetView { get; internal set; }
 
-    public RenderBuffer(SharpDX.Direct3D11.Device device, IntPtr windowHandle)
+    public RenderBuffer(SharpDX.Direct3D11.Device device, nint windowHandle)
     {
         _device = device;
         using var dxgiDevice = device.QueryInterface<SharpDX.DXGI.Device1>();
@@ -52,7 +52,7 @@ public class RenderBuffer : IDisposable
 
     private void UpdateBufferAndView()
     {
-        BackBuffer = Texture2D.FromSwapChain<Texture2D>(SwapChain, 0);
+        BackBuffer = SharpDX.Direct3D11.Resource.FromSwapChain<Texture2D>(SwapChain, 0);
         TargetView = new RenderTargetView(_device, BackBuffer);
         _device.ImmediateContext.OutputMerger.SetTargets(TargetView);
     }

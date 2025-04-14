@@ -126,7 +126,7 @@ partial class RenderBox : Control
     {
         // The rotated bounding box for a w×h rectangle, rotated by θ, 
         // has width = |w cos θ| + |h sin θ|, height = |h cos θ| + |w sin θ|
-        var rad = SharpDX.MathUtil.DegreesToRadians((float)angle);
+        var rad = MathUtil.DegreesToRadians((float)angle);
         rotatedW = Math.Abs(imageW * Math.Cos(rad)) + Math.Abs(imageH * Math.Sin(rad));
         rotatedH = Math.Abs(imageW * Math.Sin(rad)) + Math.Abs(imageH * Math.Cos(rad));
     }

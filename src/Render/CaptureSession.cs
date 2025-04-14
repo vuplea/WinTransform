@@ -2,10 +2,11 @@
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
+using WinTransform.Helpers;
 
-namespace WinTransform.Helpers;
+namespace WinTransform.Render;
 
-public class CaptureSession : IDisposable
+class CaptureSession : IDisposable
 {
     // we want TaskCompletionOptions.RunContinuationsAsynchronously = False to process directly on capture thread
     private TaskCompletionSource _frameReady = new();
