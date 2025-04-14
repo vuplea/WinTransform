@@ -20,6 +20,6 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Render\shader.hlsl" CopyToOutputDirectory="PreserveNewest" Link="shader.hlsl" />
+    <EmbeddedResource Include="Render\shader.hlsl" LogicalName="shader" />
   </ItemGroup>
 </Project>

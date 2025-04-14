@@ -9,10 +9,11 @@ record Shaders(VertexShader VertexShader, PixelShader PixelShader, InputLayout I
 {
     public static Shaders Load(SharpDX.Direct3D11.Device device)
     {
+        var shader = ReadShader();
         var context = device.ImmediateContext;
         // Vertex shader
-        var vertexShaderBytecode = ShaderBytecode.CompileFromFile(
-            "shader.hlsl",
+        var vertexShaderBytecode = ShaderBytecode.Compile(
+            shader,
             "VSMain",
             "vs_4_0",
             ShaderFlags.None,
@@ -22,8 +23,8 @@ record Shaders(VertexShader VertexShader, PixelShader PixelShader, InputLayout I
         context.VertexShader.Set(vertexShader);
 
         // Pixel shader
-        var pixelShaderBytecode = ShaderBytecode.CompileFromFile(
-            "shader.hlsl",
+        var pixelShaderBytecode = ShaderBytecode.Compile(
+            shader,
             "PSMain",
             "ps_4_0",
             ShaderFlags.None,
@@ -51,6 +52,13 @@ record Shaders(VertexShader VertexShader, PixelShader PixelShader, InputLayout I
         var inputLayout = new InputLayout(device, ShaderSignature.GetInputSignature(vertexShaderBytecode), inputElements);
         context.InputAssembler.InputLayout = inputLayout;
         return new(vertexShader, pixelShader, inputLayout, sampler, vertexShaderBytecode, pixelShaderBytecode);
+    }
+
+    private static string ReadShader()
+    {
+        using var shader = typeof(Shaders).Assembly.GetManifestResourceStream("shader");
+        using var reader = new StreamReader(shader);
+        return reader.ReadToEnd();
     }
 
     public void Dispose()
