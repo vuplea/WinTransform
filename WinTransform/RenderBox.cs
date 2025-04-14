@@ -15,6 +15,7 @@ partial class RenderBox : Control
     private readonly CancellationTokenSource _cts = new();
     private readonly GraphicsCaptureItem _captureItem;
     private bool _inRecalculateSize;
+    private event Action SizeRecalculated;
 
     public RenderBox(GraphicsCaptureItem captureItem)
     {
@@ -105,6 +106,7 @@ partial class RenderBox : Control
         GetGridSize(imageSize.X, imageSize.Y, Angle, out var gridW, out var gridH);
         Width = (int)Math.Round(gridW);
         Height = (int)Math.Round(gridH);
+        SizeRecalculated?.Invoke();
         return;
 
         Disposable PreventRecursion(out bool shouldReturn)

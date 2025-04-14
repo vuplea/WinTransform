@@ -1,5 +1,4 @@
 ﻿using SharpDX.Direct3D11;
-using System.Diagnostics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
@@ -14,8 +13,6 @@ public class CaptureSession : IDisposable
     private readonly IDirect3DDevice _graphicsDevice;
     private readonly Direct3D11CaptureFramePool _framePool;
     private readonly GraphicsCaptureSession _session;
-
-    public Direct3D11CaptureFrame LatestFrame { get; internal set; }
 
     public CaptureSession(GraphicsCaptureItem captureItem, Device device)
     {
@@ -37,17 +34,21 @@ public class CaptureSession : IDisposable
     {
         await _frameReady.Task.WaitAsync(ct);
         _frameReady = new();
+    }
+
+    public Direct3D11CaptureFrame GetLatestFrame()
+    {
+        Direct3D11CaptureFrame latestFrame = null;
         while (_framePool.TryGetNextFrame() is { } frame)
         {
-            LatestFrame?.Dispose();
-            LatestFrame = frame;
+            latestFrame?.Dispose();
+            latestFrame = frame;
         }
-        Trace.Assert(LatestFrame != null);
+        return latestFrame;
     }
 
     public void Dispose()
     {
-        LatestFrame?.Dispose();
         _session.Dispose();
         _framePool.Dispose();
         _graphicsDevice.Dispose();

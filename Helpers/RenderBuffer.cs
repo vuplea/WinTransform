@@ -34,14 +34,14 @@ public class RenderBuffer : IDisposable
         UpdateBufferAndView();
     }
 
-    public void SetSize(Size size, ILogger logger)
+    public void UpdateSize(Size size, ILogger logger)
     {
         if (size == _size)
         {
             return;
         }
-        logger.LogInformation("Resizing render buffer");
         _size = size;
+        logger.LogInformation("Resizing render buffer");
         var viewport = new ViewportF(0, 0, size.Width, size.Height, 0.0f, 1.0f);
         _device.ImmediateContext.Rasterizer.SetViewport(viewport);
         BackBuffer?.Dispose();

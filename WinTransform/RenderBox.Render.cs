@@ -8,6 +8,7 @@ using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Windows.Graphics.Capture;
 using WinTransform.Helpers;
 
 namespace WinTransform;
@@ -44,46 +45,110 @@ partial class RenderBox
 
     private async Task CaptureAndRender(IntPtr handle, Action captureSizeChanged = null)
     {
-        using var _ = TrackSizeChanged(out var sizeChanged);
+        using var _ = TrackControlSize(out var sizeRecalculated);
         using var device = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug);
         using var capture = new CaptureSession(_captureItem, device);
         using var shaders = Shaders.Load(device);
         using var renderBuffer = new RenderBuffer(device, handle);
+        using var inputBuffer = new InputBuffer(device, _logger);
         using var vertexCache = new VertexCache();
         var fpsCounter = new FpsCounter();
         var lastCaptureSize = _captureItem.Size;
         while (true)
         {
-            //await await Task.WhenAny(capture.WaitFrame(), sizeChanged.WaitAsync()).WaitAsync(_cts.Token);
-            await capture.WaitFrame().WaitAsync(_cts.Token);
-            var frame = capture.LatestFrame;
-            if (frame == null)
+            await await Task.WhenAny(
+                capture.WaitFrame(_cts.Token),
+                sizeRecalculated.WaitAsync(_cts.Token));
+
+            // Disposing asap seems to help
+            using (var frame = capture.GetLatestFrame())
             {
-                continue;
+                if (frame != null)
+                {
+                    if (frame.ContentSize != lastCaptureSize)
+                    {
+                        lastCaptureSize = frame.ContentSize;
+                        captureSizeChanged?.Invoke();
+                    }
+                    inputBuffer.Update(frame);
+                }
             }
-            if (frame.ContentSize != lastCaptureSize)
-            {
-                lastCaptureSize = frame.ContentSize;
-                captureSizeChanged?.Invoke();
-            }
-            renderBuffer.SetSize(Size, _logger);
+            renderBuffer.UpdateSize(Size, _logger);
             vertexCache.Update(device, GetImageSize(maintainImageSize: true), Angle, _logger);
-            using var bitmap = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
-            using var shaderResource = new ShaderResourceView(device, bitmap);
-            device.ImmediateContext.PixelShader.SetShaderResource(0, shaderResource);
-            device.ImmediateContext.Draw(vertexCount: 6, startVertexLocation: 0);
+            device.ImmediateContext.Draw(vertexCache.Count, 0);
             renderBuffer.SwapChain.Present(0, PresentFlags.None);
             fpsCounter.TrackFps(_logger);
         }
     }
 
-    Disposable TrackSizeChanged(out AsyncAutoResetEvent sizeChanged)
+    Disposable TrackControlSize(out AsyncManualResetEvent sizeRecalculated)
     {
-        var sizeChangedEvent = new AsyncAutoResetEvent();
-        sizeChanged = sizeChangedEvent;
-        SizeChanged += OnSizeChanged;
-        return new(() => SizeChanged -= OnSizeChanged);
-        void OnSizeChanged(object sender, EventArgs args) => sizeChangedEvent.Set();
+        // use manual reset, AutoResetEvent allocates on each wait
+        var recalculatedEvent = new AsyncManualResetEvent();
+        sizeRecalculated = recalculatedEvent;
+        SizeRecalculated += OnRecalculated;
+        return new(() => SizeRecalculated -= OnRecalculated);
+
+        void OnRecalculated()
+        {
+            recalculatedEvent.Set();
+            recalculatedEvent.Reset();
+        }
+    }
+}
+
+class InputBuffer : IDisposable
+{
+    private readonly SharpDX.Direct3D11.Device _device;
+    private readonly ILogger _logger;
+    private ShaderResourceView _shaderResource;
+
+    public Texture2D Buffer { get; private set; }
+
+    public InputBuffer(SharpDX.Direct3D11.Device device, ILogger logger)
+    {
+        _device = device;
+        _logger = logger;
+        UpdateBuffer(1, 1);
+    }
+
+    public void Update(Direct3D11CaptureFrame frame)
+    {
+        UpdateBuffer(frame.ContentSize.Width, frame.ContentSize.Height);
+        using var frameTexture = Direct3D11Helper.CreateSharpDXTexture2D(frame.Surface);
+        _device.ImmediateContext.CopyResource(frameTexture, Buffer);
+    }
+
+    private void UpdateBuffer(int width, int height)
+    {
+        if (Buffer?.Description.Width == width && Buffer?.Description.Height == height)
+        {
+            return;
+        }
+        Dispose();
+        _logger.LogInformation("Creating input buffer");
+        var description = new Texture2DDescription
+        {
+            Width = width,
+            Height = height,
+            MipLevels = 1,
+            ArraySize = 1,
+            Format = Format.B8G8R8A8_UNorm,
+            SampleDescription = new SampleDescription(1, 0),
+            Usage = ResourceUsage.Default,
+            BindFlags = BindFlags.ShaderResource,
+            CpuAccessFlags = CpuAccessFlags.None,
+            OptionFlags = ResourceOptionFlags.None
+        };
+        Buffer = new Texture2D(_device, description);
+        _shaderResource = new ShaderResourceView(_device, Buffer);
+        _device.ImmediateContext.PixelShader.SetShaderResource(0, _shaderResource);
+    }
+
+    public void Dispose()
+    {
+        _shaderResource?.Dispose();
+        Buffer?.Dispose();
     }
 }
 
@@ -92,6 +157,8 @@ class VertexCache : IDisposable
     record Key(Vector2 ImageSize, double Angle);
     private Key _key;
     private SharpDX.Direct3D11.Buffer _vertexBuffer;
+
+    public int Count { get; private set; }
 
     public void Update(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle, ILogger logger)
     {
@@ -131,6 +198,7 @@ class VertexCache : IDisposable
                        Matrix.Translation(-1, 1, 0);
         Transform(ref vertices, fillClip);
 
+        Count = vertices.Length;
         _vertexBuffer = SharpDX.Direct3D11.Buffer.Create(device, vertices, new()
         {
             SizeInBytes = vertices.Length * Marshal.SizeOf<Vertex>(),
