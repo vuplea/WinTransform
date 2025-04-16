@@ -29,8 +29,6 @@ class DragHandler : InteractionHandler
         var newBounds = new Rectangle(newLoc, DragStartInfo.OriginalBounds.Size);
         newBounds = ApplySnapping(newBounds, RenderForm.ClientSize);
         Picture.Bounds = newBounds;
-
-        Logger.LogDebug($"dx={dx}, dy={dy}, loc=({newLoc.X},{newLoc.Y})");
     }
 
     private static Rectangle ApplySnapping(Rectangle bounds, Size parentSize)

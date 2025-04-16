@@ -92,7 +92,7 @@ class ResizeHandler : InteractionHandler
 
         if (originalBounds != newBounds)
         {
-            Logger.LogDebug($"handle={_draggingHandle}, " +
+            Logger.LogTrace($"handle={_draggingHandle}, " +
                 $"old=({originalBounds.Width}x{originalBounds.Height}), " +
                 $"new=({newBounds.Width}x{newBounds.Height}), " +
                 $"loc=({newBounds.X},{newBounds.Y})");

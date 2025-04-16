@@ -26,7 +26,7 @@ class CaptureSession : IDisposable
             captureItem.Size);
         _framePool.FrameArrived += (_, _) => _frameReady.TrySetResult();
         _session = _framePool.CreateCaptureSession(_captureItem);
-        _session.MinUpdateInterval = TimeSpan.FromMilliseconds(1);
+        _session.MinUpdateInterval = TimeSpan.FromMilliseconds(2); // Max "500" FPS
         _session.IsBorderRequired = false;
         _session.StartCapture();
     }

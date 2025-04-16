@@ -15,7 +15,6 @@ partial class RenderBox : Control
     private readonly CancellationTokenSource _cts = new();
     private readonly GraphicsCaptureItem _captureItem;
     private bool _inRecalculateSize;
-    private event Action SizeRecalculated;
 
     public RenderBox(GraphicsCaptureItem captureItem)
     {
@@ -63,7 +62,7 @@ partial class RenderBox : Control
             {
                 if (initialSize != _cachedImageSize)
                 {
-                    _logger.LogDebug($"Image size changed: {initialSize} -> {_cachedImageSize}");
+                    _logger.LogTrace($"Image size changed: {initialSize} -> {_cachedImageSize}");
                 }
             });
         }
@@ -106,7 +105,6 @@ partial class RenderBox : Control
         GetGridSize(imageSize.X, imageSize.Y, Angle, out var gridW, out var gridH);
         Width = (int)Math.Round(gridW);
         Height = (int)Math.Round(gridH);
-        SizeRecalculated?.Invoke();
         return;
 
         Disposable PreventRecursion(out bool shouldReturn)
@@ -136,7 +134,7 @@ partial class RenderBox : Control
     {
         // Convert angle from degrees to radians.
         // We only need the absolute values for the bounding box equations.
-        var rad = angle * Math.PI / 180.0;
+        var rad = MathUtil.DegreesToRadians((float)angle);
         var absC = Math.Abs(Math.Cos(rad));
         var absS = Math.Abs(Math.Sin(rad));
 

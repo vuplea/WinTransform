@@ -65,7 +65,7 @@ class RenderForm : Form, IRenderForm
             {
                 if (_activeHandler != initialHandler)
                 {
-                    _logger.LogInformation($"Handler: {_activeHandler?.GetType().Name ?? "null"}");
+                    _logger.LogTrace($"Handler: {_activeHandler?.GetType().Name ?? "null"}");
                 }
             });
         }

@@ -14,7 +14,7 @@ class VertexCache : IDisposable
 
     public int Count { get; private set; }
 
-    public void Update(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle, ILogger logger)
+    public void Update(Device device, Vector2 imageSize, double angle, ILogger logger)
     {
         var key = new Key(imageSize, angle);
         if (_key == key)
@@ -23,11 +23,11 @@ class VertexCache : IDisposable
         }
         _key = key;
         _vertexBuffer?.Dispose();
-        logger.LogInformation("Generating vertex buffer");
+        logger.LogTrace("Generating vertex buffer");
         UpdateCore(device, imageSize, angle);
     }
 
-    private void UpdateCore(SharpDX.Direct3D11.Device device, Vector2 imageSize, double angle)
+    private void UpdateCore(Device device, Vector2 imageSize, double angle)
     {
         var w = imageSize.X;
         var h = imageSize.Y;

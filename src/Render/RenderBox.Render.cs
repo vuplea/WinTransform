@@ -1,6 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using Nito.AsyncEx;
-using Nito.Disposables;
 using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
@@ -40,7 +38,6 @@ partial class RenderBox
 
     private async Task CaptureAndRender(IntPtr handle, Action captureSizeChanged = null)
     {
-        using var _ = TrackControlSize(out var sizeRecalculated);
         using var device = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug);
         using var capture = new CaptureSession(_captureItem, device);
         using var shaders = Shaders.Load(device);
@@ -51,11 +48,14 @@ partial class RenderBox
         var lastCaptureSize = _captureItem.Size;
         while (true)
         {
-            await await Task.WhenAny(
-                capture.WaitFrame(_cts.Token),
-                sizeRecalculated.WaitAsync(_cts.Token));
+            try
+            {
+                await fpsCounter.AddFraction("WaitFrame", () =>
+                    capture.WaitFrame(_cts.Token).WaitAsync(TimeSpan.FromMilliseconds(5)));
+            }
+            catch (TimeoutException) { }
 
-            // Disposing asap seems to help
+            // Disposing asap might help
             using (var frame = capture.GetLatestFrame())
             {
                 if (frame != null)
@@ -70,24 +70,9 @@ partial class RenderBox
             }
             renderBuffer.UpdateSize(Size, _logger);
             vertexCache.Update(device, GetImageSize(maintainImageSize: true), Angle, _logger);
-            device.ImmediateContext.Draw(vertexCache.Count, 0);
-            renderBuffer.SwapChain.Present(0, PresentFlags.None);
+            fpsCounter.AddFraction("Draw", () => device.ImmediateContext.Draw(vertexCache.Count, 0));
+            fpsCounter.AddFraction("Present", () => renderBuffer.SwapChain.Present(0, PresentFlags.AllowTearing));
             fpsCounter.TrackFps(_logger);
-        }
-    }
-
-    Disposable TrackControlSize(out AsyncManualResetEvent sizeRecalculated)
-    {
-        // use manual reset, AutoResetEvent allocates on each wait
-        var recalculatedEvent = new AsyncManualResetEvent();
-        sizeRecalculated = recalculatedEvent;
-        SizeRecalculated += OnRecalculated;
-        return new(() => SizeRecalculated -= OnRecalculated);
-
-        void OnRecalculated()
-        {
-            recalculatedEvent.Set();
-            recalculatedEvent.Reset();
         }
     }
 }

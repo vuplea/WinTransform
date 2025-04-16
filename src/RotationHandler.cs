@@ -5,8 +5,6 @@ namespace WinTransform;
 
 class RotationHandler : InteractionHandler
 {
-    private const double SnapThreshold = 1f;  // degrees within which we snap to multiples of 90
-
     private double _initialDraggingAngle;
     private double _initialPictureAngle;
     private Point _initialPictureCenter;
@@ -51,9 +49,9 @@ class RotationHandler : InteractionHandler
         var currentDraggingAngle = GetDraggingAngle();
         var delta = currentDraggingAngle - _initialDraggingAngle;
         var newPictureAngle = _initialPictureAngle + delta;
-        newPictureAngle = SnapAngle(newPictureAngle, 30f, SnapThreshold);
+        newPictureAngle = SnapAngle(newPictureAngle, 30f, 1f);
         Picture.Angle = newPictureAngle;
-        Logger.LogDebug($"OnDrag: newAngle={newPictureAngle:F2}, delta={delta:F2}");
+        Logger.LogTrace($"OnDrag: newAngle={newPictureAngle:F2}, delta={delta:F2}");
     }
 
     private double GetDraggingAngle()

@@ -14,7 +14,7 @@ class RenderBuffer : IDisposable
     public Texture2D BackBuffer { get; internal set; }
     public RenderTargetView TargetView { get; internal set; }
 
-    public RenderBuffer(SharpDX.Direct3D11.Device device, nint windowHandle)
+    public RenderBuffer(SharpDX.Direct3D11.Device device, IntPtr windowHandle)
     {
         _device = device;
         using var dxgiDevice = device.QueryInterface<SharpDX.DXGI.Device1>();
@@ -24,10 +24,11 @@ class RenderBuffer : IDisposable
             ModeDescription = new ModeDescription(0, 0, Rational.Empty, Format.B8G8R8A8_UNorm),
             SampleDescription = new SampleDescription(1, 0),
             Usage = Usage.RenderTargetOutput,
-            BufferCount = 1,
+            BufferCount = 2,
             OutputHandle = windowHandle,
-            SwapEffect = SwapEffect.Discard,
-            IsWindowed = true
+            SwapEffect = SwapEffect.FlipDiscard,
+            IsWindowed = true,
+            Flags = SwapChainFlags.AllowTearing
         };
         using var factory = new Factory1();
         SwapChain = new SwapChain(factory, device, description);
@@ -38,15 +39,16 @@ class RenderBuffer : IDisposable
     {
         if (size == _size)
         {
+            UpdateTargetView();
             return;
         }
         _size = size;
-        logger.LogInformation("Resizing render buffer");
+        logger.LogTrace("Resizing render buffer");
         var viewport = new ViewportF(0, 0, size.Width, size.Height, 0.0f, 1.0f);
         _device.ImmediateContext.Rasterizer.SetViewport(viewport);
         BackBuffer?.Dispose();
         TargetView?.Dispose();
-        SwapChain.ResizeBuffers(1, size.Width, size.Height, Format.B8G8R8A8_UNorm, SwapChainFlags.None);
+        SwapChain.ResizeBuffers(2, size.Width, size.Height, Format.B8G8R8A8_UNorm, SwapChainFlags.AllowTearing);
         UpdateBufferAndView();
     }
 
@@ -54,8 +56,10 @@ class RenderBuffer : IDisposable
     {
         BackBuffer = SharpDX.Direct3D11.Resource.FromSwapChain<Texture2D>(SwapChain, 0);
         TargetView = new RenderTargetView(_device, BackBuffer);
-        _device.ImmediateContext.OutputMerger.SetTargets(TargetView);
+        UpdateTargetView();
     }
+
+    private void UpdateTargetView() => _device.ImmediateContext.OutputMerger.SetTargets(TargetView);
 
     public void Dispose()
     {
