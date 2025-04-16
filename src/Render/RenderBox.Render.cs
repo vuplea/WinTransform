@@ -39,7 +39,7 @@ partial class RenderBox
     private async Task CaptureAndRender(IntPtr handle, Action captureSizeChanged = null)
     {
         using var device = new SharpDX.Direct3D11.Device(DriverType.Hardware, DeviceCreationFlags.BgraSupport | DeviceCreationFlags.Debug);
-        using var capture = new CaptureSession(_captureItem, device);
+        using var capture = new CaptureSession(_captureItem, device, _logger);
         using var shaders = Shaders.Load(device);
         using var renderBuffer = new RenderBuffer(device, handle);
         using var inputBuffer = new InputBuffer(device, _logger);

@@ -15,7 +15,6 @@ static class Program
         )
         .BuildServiceProvider();
 
-    [STAThread]
     public static void Main()
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);

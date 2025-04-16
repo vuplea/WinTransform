@@ -1,4 +1,5 @@
-﻿using SharpDX.Direct3D11;
+﻿using Microsoft.Extensions.Logging;
+using SharpDX.Direct3D11;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
@@ -14,11 +15,13 @@ class CaptureSession : IDisposable
     private readonly IDirect3DDevice _graphicsDevice;
     private readonly Direct3D11CaptureFramePool _framePool;
     private readonly GraphicsCaptureSession _session;
+    private readonly ILogger _logger;
 
-    public CaptureSession(GraphicsCaptureItem captureItem, Device device)
+    public CaptureSession(GraphicsCaptureItem captureItem, Device device, ILogger logger)
     {
         _captureItem = captureItem;
         _graphicsDevice = Direct3D11Helper.AsGraphicsDevice(device);
+        _logger = logger;
         _framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
             _graphicsDevice,
             DirectXPixelFormat.B8G8R8A8UIntNormalized,
@@ -26,8 +29,10 @@ class CaptureSession : IDisposable
             captureItem.Size);
         _framePool.FrameArrived += (_, _) => _frameReady.TrySetResult();
         _session = _framePool.CreateCaptureSession(_captureItem);
-        _session.MinUpdateInterval = TimeSpan.FromMilliseconds(2); // Max "500" FPS
-        _session.IsBorderRequired = false;
+        IfSupported(() => _session.MinUpdateInterval = TimeSpan.FromMilliseconds(2),
+            nameof(_session.MinUpdateInterval)); // Max "500" FPS
+        IfSupported(() => _session.IsBorderRequired = false,
+            nameof(_session.IsBorderRequired));
         _session.StartCapture();
     }
 
@@ -46,6 +51,18 @@ class CaptureSession : IDisposable
             latestFrame = frame;
         }
         return latestFrame;
+    }
+
+    private void IfSupported(Action action, string label)
+    {
+        try
+        {
+            action();
+        }
+        catch (InvalidCastException ex)
+        {
+            ex.Trace(_logger, $"{label} not supported");
+        }
     }
 
     public void Dispose()
